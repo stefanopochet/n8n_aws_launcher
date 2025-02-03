@@ -9,20 +9,12 @@ Metadata:
       - Label:
           default: "Instance Configuration"
         Parameters:
-          - KeyName
           - InstanceType
     ParameterLabels:
-      KeyName:
-        default: "EC2 Key Pair Name"
       InstanceType:
         default: "EC2 Instance Type"
 
 Parameters:
-  # @todo: remove key pair name or find a way to make it optional
-  KeyName:
-    Description: Name of an existing EC2 KeyPair for SSH access
-    Type: AWS::EC2::KeyPair::KeyName
-
   InstanceType:  # Parameter for instance type
     Description: EC2 instance type for n8n instance
     Type: String
@@ -54,7 +46,6 @@ Resources:
     Type: AWS::EC2::Instance
     Properties:
       InstanceType: !Ref InstanceType
-      KeyName: !If [HasKeyName, !Ref KeyName, !Ref "AWS::NoValue"]
       ImageId: 
         # Dynamically get the latest Amazon Linux 2 64-bit AMI
         Fn::Sub: "{{resolve:ssm:/aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2}}"
@@ -133,10 +124,7 @@ Resources:
           cd /home/ec2-user/n8n || { echo "Failed to change directory to /home/ec2-user/n8n"; exit 1; }
           docker-compose up -d || { echo "Failed to start Docker Compose services"; exit 1; }
           echo "Docker Compose services started successfully."
-
-Conditions:
-  HasKeyName: !Not [!Equals [!Ref KeyName, ""]]
-
+          
 Outputs:
   # Return the public DNS of the instance
   InstancePublicURL:
