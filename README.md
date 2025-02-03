@@ -22,11 +22,6 @@
   Launch n8n for Free on AWS
 </h1>
 
-<p align="center">
-  <br />
-  <a href="https://github.com/stefanopochet/n8n_aws_launcher" rel="dofollow">Explore the project on GitHub</a>
-<br />
-
 ---
 
 ## N8N AWS Launcher
