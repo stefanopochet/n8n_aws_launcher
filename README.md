@@ -2,7 +2,7 @@
 
 <div align="center" style="display: flex; align-items: center;">
   <a href="https://github.com/stefanopochet/n8n_aws_launcher" target="_blank">
-    <img alt="N8N AWS Launcher Logo" src="https://github.com/stefanopochet/n8n_aws_launcher/raw/main/logo.png" width="280" style="height: auto;">
+    <img alt="N8N AWS Launcher Logo" src="https://github.com/stefanopochet/n8n_aws_launcher/raw/main/logo.webp" width="280" style="height: auto;">
   </a>
 </div>
 
@@ -29,7 +29,7 @@
 
 ---
 
-## N8N AWS Launcher (100% Free - 2 minutes installation - No coding skills required)
+## N8N AWS Launcher
 
 The N8N AWS Launcher provides a unique and effortless way to deploy n8n on AWS with just one click, completely free using the AWS Free Tier. This project leverages AWS CloudFormation to automate the setup of an EC2 instance running n8n in a Docker container.
 
@@ -40,7 +40,7 @@ The N8N AWS Launcher provides a unique and effortless way to deploy n8n on AWS w
 - **Automated Setup**: Uses CloudFormation to handle the infrastructure setup.
 - **Secure Access**: Configurable security group for HTTP and SSH access.
 
-### Installation
+### Setup Guide
 
 1. **Download the CloudFormation Template**: Save the template file on your computer from [this link](https://raw.githubusercontent.com/stefanopochet/n8n_aws_launcher/refs/heads/main/n8n-cloud-formation-template.yaml).
 
@@ -52,7 +52,6 @@ The N8N AWS Launcher provides a unique and effortless way to deploy n8n on AWS w
 
 4. **Configure Stack Details**:
    - Enter a stack name, e.g., `n8nawslauncher` (or any name you prefer).
-   - For **EC2 Key Pair Name**, input the name of an existing EC2 KeyPair for SSH access. If you don't have one, you can leave it blank.
    - For **EC2 Instance Type**, select your preferred instance type. `t3.micro` is recommended for AWS Free Tier and should suffice for minimal workflows.
 
 5. **Review and Create**:
