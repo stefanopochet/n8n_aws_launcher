@@ -1,0 +1,144 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >
+  Minimal AWS CloudFormation template to run n8n in Docker on an EC2 instance.
+  Remember to specify a stack name when creating the stack.
+
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: "Instance Configuration"
+        Parameters:
+          - KeyName
+          - InstanceType
+    ParameterLabels:
+      KeyName:
+        default: "EC2 Key Pair Name"
+      InstanceType:
+        default: "EC2 Instance Type"
+
+Parameters:
+  # @todo: remove key pair name or find a way to make it optional
+  KeyName:
+    Description: Name of an existing EC2 KeyPair for SSH access
+    Type: AWS::EC2::KeyPair::KeyName
+
+  InstanceType:  # Parameter for instance type
+    Description: EC2 instance type for n8n instance
+    Type: String
+    Default: t3.micro
+    AllowedValues:  # Restrict to specific instance types
+      - t3.micro
+      - t3.small
+      - t3.medium
+    ConstraintDescription: Must be a valid EC2 instance type.
+
+Resources:
+  # Security Group - Controls inbound/outbound traffic
+  SecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Allow HTTP for n8n and SSH for admin access
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 22  # SSH access (for management)
+          ToPort: 22
+          CidrIp: 0.0.0.0/0  # Consider restricting to specific IPs for security
+        - IpProtocol: tcp
+          FromPort: 80  # HTTP access
+          ToPort: 80
+          CidrIp: 0.0.0.0/0  # Allow access from any IP address
+
+  # EC2 Instance - Runs n8n in a Docker container
+  EC2Instance:
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType: !Ref InstanceType
+      KeyName: !If [HasKeyName, !Ref KeyName, !Ref "AWS::NoValue"]
+      ImageId: 
+        # Dynamically get the latest Amazon Linux 2 64-bit AMI
+        Fn::Sub: "{{resolve:ssm:/aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2}}"
+      # Not defining a VPC or subnet here, using default AWS default VPC and subnet
+      SecurityGroupIds: [!Ref SecurityGroup]
+      UserData:  # Bootstrap script to install Docker and run n8n using Docker Compose
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          LOG_FILE="/var/log/n8n_bootstrap.log"
+          exec > >(tee -a ${!LOG_FILE} ) 2>&1
+          
+          echo "Starting system update..."
+          yum update -y || { echo "System update failed"; exit 1; }
+          echo "System update completed successfully."
+
+          echo "Enabling Docker in Amazon Linux extras..."
+          amazon-linux-extras enable docker || { echo "Failed to enable Docker"; exit 1; }
+          echo "Docker enabled successfully."
+
+          echo "Installing Docker..."
+          yum install -y docker || { echo "Docker installation failed"; exit 1; }
+          echo "Docker installed successfully."
+
+          echo "Starting Docker service..."
+          systemctl start docker || { echo "Failed to start Docker service"; exit 1; }
+          echo "Docker service started successfully."
+
+          echo "Enabling Docker service to start on boot..."
+          systemctl enable docker || { echo "Failed to enable Docker service"; exit 1; }
+          echo "Docker service enabled successfully."
+
+          echo "Installing Docker Compose..."
+          curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose || { echo "Failed to download Docker Compose"; exit 1; }
+          chmod +x /usr/local/bin/docker-compose || { echo "Failed to set execute permissions for Docker Compose"; exit 1; }
+          echo "Docker Compose installed successfully."
+
+          echo "Fetching the public DNS of the instance..."
+          INSTANCE_PUBLIC_DNS=$(curl -s http://169.254.169.254/latest/meta-data/public-hostname) || { echo "Failed to fetch instance public DNS"; exit 1; }
+          echo "Instance public DNS fetched: ${!INSTANCE_PUBLIC_DNS}"
+
+          echo "Creating Docker Compose directory..."
+          mkdir -p /home/ec2-user/n8n || { echo "Failed to create Docker Compose directory"; exit 1; }
+          echo "Docker Compose directory created successfully."
+
+          echo "Creating Docker Compose file..."
+          cat <<EOF > /home/ec2-user/n8n/docker-compose.yml
+
+          volumes:
+            n8n_data:
+            n8n_files:
+
+          services:
+            n8n:
+              # Using the latest version of n8n as of 2025-01-31
+              # n8n docker file v.0.0.1
+              image: docker.n8n.io/n8nio/n8n:1.76.1
+              restart: always
+              ports:
+                - "80:5678"
+              environment:
+                - N8N_PORT=5678
+                - N8N_PROTOCOL=http
+                - NODE_ENV=production
+                - N8N_SECURE_COOKIE=false
+                - N8N_HOST=${!INSTANCE_PUBLIC_DNS}
+                - N8N_EDITOR_BASE_URL=http://${!INSTANCE_PUBLIC_DNS}
+              # N8n requires a data folder and a files folder to be located in directory /home/ec2-user/n8n and /files.
+              # We will make Docker mount these folders to the n8n container.
+              volumes:
+                - n8n_data:/home/node/.n8n
+                - n8n_files:/files
+          EOF
+          echo "Docker Compose file created successfully."
+
+          echo "Running Docker Compose..."
+          cd /home/ec2-user/n8n || { echo "Failed to change directory to /home/ec2-user/n8n"; exit 1; }
+          docker-compose up -d || { echo "Failed to start Docker Compose services"; exit 1; }
+          echo "Docker Compose services started successfully."
+
+Conditions:
+  HasKeyName: !Not [!Equals [!Ref KeyName, ""]]
+
+Outputs:
+  # Return the public DNS of the instance
+  InstancePublicURL:
+    Description: Public URL of the n8n instance, access it using your browser (IMPORTANT use http:// and not https://)
+    Value: !GetAtt EC2Instance.PublicDnsName
